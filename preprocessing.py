@@ -5,11 +5,28 @@ import numpy as np
 # Specifically based on the ARTIST pipeline
 
 def remove_EOG(eeg_data):
-    if("HEOG" in eeg_data.ch_names and "VEOG" in eeg_data.ch_names):
-        eeg_data.drop_channels(["HEOG", "VEOG"])
+    if("HEOG" in eeg_data.ch_names):
+        eeg_data.drop_channels(["HEOG"])
+    if("VEOG" in eeg_data.ch_names):
+        eeg_data.drop_channels(["VEOG"])
 
 def downsample(eeg_data, sample_rate = 1000):
     eeg_data.resample(sample_rate, npad="auto")
+
+def get_baseline_corrected(eeg_data, events, event_dict, tmin=-1, tmax=-0.002):
+    baseline = (tmin, tmax)
+
+    # Create epochs
+    epochs = mne.Epochs(eeg_data, events, event_dict, tmin, tmax, baseline=None, preload=True)
+
+    # Apply baseline correction
+    epochs.apply_baseline(baseline)
+    evoked = epochs.average()
+
+    # Convert evoked data to raw data
+    raw_corrected = mne.io.RawArray(evoked.data, eeg_data.info)
+
+    return raw_corrected
 
 def get_baseline_corrected(eeg_data):
     data = eeg_data.get_data()
@@ -36,7 +53,7 @@ def calculate_range_indices(tms_index, start, end, sampling_rate):
 
     return start_index, end_index
 
-def remove_range(eeg_data_raw, tms_indices, start, end, sampling_rate):
+def remove_range(eeg_data_raw, tms_indices, start, end, sampling_rate, interpolate=True):
     """Replace all the data in the range around the TMS pulse with 0
 
     Args:
@@ -51,21 +68,29 @@ def remove_range(eeg_data_raw, tms_indices, start, end, sampling_rate):
     """
     eeg_data = eeg_data_raw.get_data()
     num_electrodes = eeg_data.shape[0]
-    for tms_index in tms_indices:
-        start_index, end_index = calculate_range_indices(tms_index, start, end, sampling_rate)
-        for i in range(num_electrodes):
-            x = [start_index-1, end_index+1]
-            y = [eeg_data[i, start_index-1], eeg_data[i, end_index+1]]
-            x_new = np.arange(start_index, end_index+1)
-            eeg_data[i, start_index:end_index+1] = np.interp(x_new, x, y)
+    if interpolate:
+        for tms_index in tms_indices:
+            start_index, end_index = calculate_range_indices(tms_index, start, end, sampling_rate)
+            for i in range(num_electrodes):
+                x = [start_index-1, end_index+1]
+                y = [eeg_data[i, start_index-1], eeg_data[i, end_index+1]]
+                x_new = np.arange(start_index, end_index+1)
+                eeg_data[i, start_index:end_index+1] = np.interp(x_new, x, y)
             
+    else:
+        for tms_index in tms_indices:
+            start_index, end_index = calculate_range_indices(tms_index, start, end, sampling_rate)
+            for i in range(num_electrodes):
+                eeg_data[i, start_index:end_index+1] = 0
+
     eeg_data_raw._data = eeg_data
 
 def rereference(eeg_data):
-    mne.set_eeg_reference(eeg_data, ref_channels=['Cz'], projection=False)
+    # mne.set_eeg_reference(eeg_data, ref_channels=['Cz'], projection=False)
+    mne.set_eeg_reference(eeg_data, ref_channels='average')
 
-def ICA_filter(eeg_data, events, event_dict):
-    epochs = mne.Epochs(eeg_data, events, event_id=event_dict, tmin=-0.05, tmax=0.2, baseline=None, preload=True)
+def ICA_filter(eeg_data, events, event_dict, baseline=(-1, -0.002)):
+    epochs = mne.Epochs(eeg_data, events, event_id=event_dict, tmin=-1, tmax=1, baseline=baseline, preload=True)
     ica = mne.preprocessing.ICA(n_components=20, random_state=42)
     ica.fit(epochs)
     muscle_idx_auto, scores = ica.find_bads_muscle(eeg_data)
@@ -86,14 +111,15 @@ def preprocess(eeg_data):
     events, event_dict = mne.events_from_annotations(eeg_data)
     tms_indices = [event[0] for event in events if event[2] == 1]
     
-    remove_EOG(eeg_data)
-    remove_range(eeg_data, tms_indices, 0.002, 0.005, sampling_rate)
-    downsample(eeg_data)
-    # detrending
+    remove_EOG(eeg_data) # done
+    remove_range(eeg_data, tms_indices, 0.002, 0.005, sampling_rate) # done
+    downsample(eeg_data) # done
+    # detrending: fit a model and subtract model from signal
     ICA_filter(eeg_data, events, event_dict)
     bandpass(eeg_data)
     notch(eeg_data)
     ICA_filter(eeg_data, events, event_dict)
     rereference(eeg_data)
-    get_baseline_corrected(eeg_data)
+    # Replace the underneath with just baseline at epoching
+    # get_baseline_corrected(eeg_data)
     return eeg_data
