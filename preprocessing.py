@@ -113,9 +113,36 @@ def preprocess_spTEP(eeg_data):
     remove_EOG(eeg_data)
     remove_range(eeg_data, tms_indices, 0.002, 0.005, sampling_rate)
     downsample(eeg_data)
-    ICA_filter(eeg_data, events, event_dict)
+    ICA_filter(
+        eeg_data, events, event_dict
+    )  # TODO: apply ICA filter using a rule, not automatic detection
     bandpass(eeg_data)
     notch(eeg_data)
     ICA_filter(eeg_data, events, event_dict)
+    rereference(eeg_data)
+    return eeg_data
+
+
+def preprocess_rsEEG(eeg_data):
+    epoch_duration = 2
+    overlap = 1
+    sfreq = eeg_data.info["sfreq"]
+    duration_samples = int(epoch_duration * sfreq)
+    overlap_samples = int(overlap * sfreq)
+
+    onset = np.arange(
+        0,
+        eeg_data.times[-1] * sfreq - duration_samples,
+        duration_samples - overlap_samples,
+    )
+
+    events = np.vstack((onset, np.zeros_like(onset), np.ones_like(onset))).T.astype(int)
+    event_id = 1
+
+    remove_EOG(eeg_data)
+    downsample(eeg_data)
+    bandpass(eeg_data)
+    notch(eeg_data)
+    ICA_filter(eeg_data, events, event_id)
     rereference(eeg_data)
     return eeg_data
