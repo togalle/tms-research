@@ -28,7 +28,7 @@ def plot_single_response(eeg_data, channel="Pz", tmin=-0.005, tmax=0.01):
 
 
 def plot_average_epoch(epochs, start=-0.05, end=0.25):
-    data = epochs.get_data()
+    data = epochs.get_data(copy=False)
     mean_responses = np.mean(data, axis=0)
     time_points = np.linspace(-1, 1, data.shape[2])
     selected_indices = np.where((time_points >= start) & (time_points <= end))
@@ -188,7 +188,7 @@ def plot_full_average_epoch(epochs, electrodes=None, start=-0.05, end=0.25):
     epochs = epochs.copy()
     if electrodes is not None:
         epochs.pick_channels(electrodes)
-    data = epochs.get_data()
+    data = epochs.get_data(copy=False)
     mean_responses = np.mean(data, axis=(0, 1))
     sem_responses = np.std(data, axis=(0, 1)) / np.sqrt(data.shape[0])
     time_points = np.linspace(-1, 1, data.shape[2])
