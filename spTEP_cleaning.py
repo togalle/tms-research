@@ -181,7 +181,7 @@ def ICA_2(epoch_data):
 
 
 def baseline(epoch_data):
-    epoch_data.apply_baseline((None, None))
+    epoch_data.apply_baseline((-500, -5))
 
 
 def plot_full_average_epoch(epochs, electrodes=None, start=-0.05, end=0.25):
