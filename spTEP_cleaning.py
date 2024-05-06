@@ -215,7 +215,7 @@ def clean_spTEP(
     eeg_data_raw,
     plot_intermediate=False,
     interpolate_start=0.005,
-    interpolate_end=0.01,
+    interpolate_end=0.015,
     ICA1_T=3.5,
     ICA1_b1=0.011,
     ICA1_b2=0.030,
