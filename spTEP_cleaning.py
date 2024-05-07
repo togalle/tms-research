@@ -40,7 +40,10 @@ def plot_single_response(eeg_data, channel="Pz", tmin=-0.005, tmax=0.01):
     epochs.plot(picks=channel, n_epochs=1, show=True, scalings={"eeg": 50e-4})
 
 
-def plot_average_epoch(epochs, start=-0.05, end=0.25):
+def plot_average_epoch(epochs, start=-0.05, end=0.25, electrodes=None):
+    epochs = epochs.copy()
+    if electrodes is not None:
+        epochs.pick_channels(electrodes)
     data = epochs.get_data(copy=False)
     mean_responses = np.mean(data, axis=0)
     time_points = np.linspace(-1, 1, data.shape[2])
@@ -238,6 +241,24 @@ def baseline(epoch_data, period=(-0.500, -0.005)):
     logger.info(f"Baseline correction from {period[0]} to {period[1]} s")
     epoch_data.apply_baseline((1 + period[0], 1 + period[1]))   # Epoch is centered on 1
 
+
+def remove_epoch_portion(epochs, start_time=-0.005, end_time=0.015):
+    # Get the times from the epochs
+    times = epochs.times
+
+    # Find the indices of the start and end times
+    start_idx = (np.abs(times - start_time)).argmin()
+    end_idx = (np.abs(times - end_time)).argmin()
+
+    # Remove the data within the time range from each epoch
+    epochs._data = np.delete(epochs._data, np.s_[start_idx:end_idx], axis=-1)
+
+    # Remove the times within the time range
+    epochs.times = np.delete(epochs.times, np.s_[start_idx:end_idx])
+
+    return epochs
+
+
 # -----------------------------------------------------------------------------
 
 def clean_spTEP(
@@ -319,13 +340,15 @@ def clean_spTEP(
     baseline(epochs)
 
     if plot_result:
+        
+        plot_average_epoch(epochs)
+        plot_average_epoch(epochs, electrodes=["FC1"])
         plot_full_average_epoch(
             epochs, finalplot_electrodes, finalplot_start, finalplot_end
         )
         plot_full_average_epoch(
             epochs, None, finalplot_start, finalplot_end
         )
-        
         
     if save_result:
         filename = os.path.basename(filename)
