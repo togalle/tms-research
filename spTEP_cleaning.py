@@ -1,3 +1,5 @@
+# Configuration
+
 import os
 from ipywidgets import *
 import numpy as np
@@ -7,9 +9,20 @@ from mne_icalabel import label_components
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import utils
+import logging
+import colorlog
 
+handler = colorlog.StreamHandler()
+handler.setFormatter(colorlog.ColoredFormatter('%(log_color)s[%(asctime)s] - %(levelname)s - %(message)s'))
+
+logger = colorlog.getLogger("spTEP_cleaning")
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+# -----------------------------------------------------------------------------
 
 # Plotting utilities
+
 def plot_single_response(eeg_data, channel="Pz", tmin=-0.005, tmax=0.01):
     events, event_dict = mne.events_from_annotations(eeg_data)
     event_id = event_dict["Stimulus/S  1"]
@@ -47,8 +60,40 @@ def plot_response(eeg):
         eeg, channel="Pz", tmin=-0.05, tmax=0.05
     )  # Check for TMS pulse
 
+def plot_full_average_epoch(epochs, electrodes=None, start=-0.05, end=0.25, plot_gmfp=True):
+    epochs = epochs.copy()
+    if electrodes is not None:
+        epochs.pick_channels(electrodes)
+    data = epochs.get_data(copy=False)
+    mean_responses = np.mean(data, axis=(0, 1))
+    sem_responses = np.std(data, axis=(0, 1)) / np.sqrt(data.shape[0])
+    time_points = np.linspace(-1, 1, data.shape[2])
+    selected_indices = np.where((time_points >= start) & (time_points <= end))
+    selected_data = mean_responses[selected_indices]
+    selected_sem = sem_responses[selected_indices]
+    selected_time_points = time_points[selected_indices]
+    plt.plot(selected_time_points, selected_data, label="Average of all electrodes")
+    plt.fill_between(
+        selected_time_points,
+        selected_data - selected_sem,
+        selected_data + selected_sem,
+        color="b",
+        alpha=0.2,
+    )
+    if plot_gmfp:
+        gmfp = np.std(data, axis=1).mean(axis=0)[selected_indices]
+        plt.plot(selected_time_points, gmfp, label="GMFP")
+    plt.xlabel("Time points")
+    plt.ylabel("Mean response")
+    plt.legend()
+    plt.show()
+
+# -----------------------------------------------------------------------------
+
+# Cleaning functions
 
 def remove_EOG(eeg_data):
+    logger.info("Removing EOG channels")
     eeg_data.drop_channels(["HEOG", "VEOG"])
 
 
@@ -67,6 +112,7 @@ def calculate_range_indices(tms_index, start, end, sampling_rate):
 
 
 def interpolate_TMS_pulse(eeg_data_raw, tms_indices, start, end, sampling_rate):
+    logger.info(f"Interpolating TMS pulse from {start} to {end} seconds")
     eeg_data = eeg_data_raw.get_data()
     num_electrodes = eeg_data.shape[0]
     for tms_index in tms_indices:
@@ -90,10 +136,12 @@ def interpolate_TMS_pulse(eeg_data_raw, tms_indices, start, end, sampling_rate):
 
 
 def downsample(eeg_data, sample_rate=1000):
+    logger.info(f"Downsampling to {sample_rate} Hz")
     eeg_data.resample(sample_rate, npad="auto")
 
 
 def epoching(eeg_data):
+    logger.info("Epoching")
     events, event_dict = mne.events_from_annotations(eeg_data)
     event_id = event_dict["Stimulus/S  1"]
     epochs = mne.Epochs(
@@ -109,6 +157,7 @@ def epoching(eeg_data):
 
 
 def demean_epochs(epochs):
+    logger.info("Demeaning")
     data = epochs.get_data(copy=False)
     demeaned_data = data - np.mean(data, axis=2, keepdims=True)
     demeaned_epochs = mne.EpochsArray(
@@ -118,6 +167,7 @@ def demean_epochs(epochs):
 
 
 def ICA_1(epoch_data, T=3.5, b1=0.011, b2=0.030, n_components=20):
+    logger.info(f"ICA 1 from {b1} to {b2} seconds")
     ica = ICA(n_components=n_components, random_state=97)
     ica.fit(epoch_data)
 
@@ -139,13 +189,15 @@ def ICA_1(epoch_data, T=3.5, b1=0.011, b2=0.030, n_components=20):
         if x / y > T:
             # print("FOUND:", x / y)
             components_to_remove.append(i)
-
+    logger.info(f"Excluding ICA components {components_to_remove}")
     ica.exclude = components_to_remove
 
     epoch_data = ica.apply(epoch_data)
 
 
 def bandpass_notch(epoch_data, low_freq=1, high_freq=100, notch_freqs=[50]):
+    logger.info(f"Bandpass {low_freq}-{high_freq} Hz and notch {notch_freqs} Hz")
+    
     # Bandpass
     epoch_data.filter(low_freq, high_freq)
 
@@ -160,11 +212,13 @@ def bandpass_notch(epoch_data, low_freq=1, high_freq=100, notch_freqs=[50]):
     return filtered_epochs
 
 
-def rereference(epochs):
-    epochs.set_eeg_reference(ref_channels="average")
+def rereference(epochs, ref_channels="average"):
+    logger.info("Rereferencing to average")
+    epochs.set_eeg_reference(ref_channels)
 
 
 def ICA_2(epoch_data):
+    logger.info("ICA 2")
     ica = mne.preprocessing.ICA(n_components=20, random_state=42)
     ica.fit(epoch_data)
     ic_labels = label_components(epoch_data, ica, method="iclabel")
@@ -180,35 +234,11 @@ def ICA_2(epoch_data):
     ica.apply(epoch_data, exclude=exclude_idx)
 
 
-def baseline(epoch_data):
-    epoch_data.apply_baseline((-500, -5))
+def baseline(epoch_data, period=(-0.500, -0.005)):
+    logger.info(f"Baseline correction from {period[0]} to {period[1]} s")
+    epoch_data.apply_baseline((1 + period[0], 1 + period[1]))   # Epoch is centered on 1
 
-
-def plot_full_average_epoch(epochs, electrodes=None, start=-0.05, end=0.25):
-    epochs = epochs.copy()
-    if electrodes is not None:
-        epochs.pick_channels(electrodes)
-    data = epochs.get_data(copy=False)
-    mean_responses = np.mean(data, axis=(0, 1))
-    sem_responses = np.std(data, axis=(0, 1)) / np.sqrt(data.shape[0])
-    time_points = np.linspace(-1, 1, data.shape[2])
-    selected_indices = np.where((time_points >= start) & (time_points <= end))
-    selected_data = mean_responses[selected_indices]
-    selected_sem = sem_responses[selected_indices]
-    selected_time_points = time_points[selected_indices]
-    plt.plot(selected_time_points, selected_data, label="Average of all electrodes")
-    plt.fill_between(
-        selected_time_points,
-        selected_data - selected_sem,
-        selected_data + selected_sem,
-        color="b",
-        alpha=0.2,
-    )
-    plt.xlabel("Time points")
-    plt.ylabel("Mean response")
-    plt.legend()
-    plt.show()
-
+# -----------------------------------------------------------------------------
 
 def clean_spTEP(
     filename,
@@ -232,9 +262,10 @@ def clean_spTEP(
     events, event_dict = mne.events_from_annotations(eeg_data_raw)
     tms_indices = [event[0] for event in events if event[2] == 1]
 
-    print("Removing EOG...")
+    # Remove EOG channels
     remove_EOG(eeg_data_copy)
-    print("Interpolating TMS artifact...")
+    
+    # Remove TMS pulse and interpolate
     interpolate_TMS_pulse(
         eeg_data_copy,
         tms_indices,
@@ -244,17 +275,21 @@ def clean_spTEP(
     )
     if plot_intermediate:
         plot_response(eeg_data_copy)
-    print("Downsampling...")
+    
+    # Downsample
     downsample(eeg_data_copy)
-    print("Epoching...")
+    
+    # Epoch
     epochs = epoching(eeg_data_copy)
     if plot_intermediate:
         plot_average_epoch(epochs)
-    print("Demeaning...")
+    
+    # Demeaning
     epochs = demean_epochs(epochs)
     if plot_intermediate:
         plot_average_epoch(epochs)
-    print("ICA 1...")
+    
+    # First ICA filter
     ICA_1(
         epochs,
         T=ICA1_T,
@@ -264,26 +299,34 @@ def clean_spTEP(
     )
     if plot_intermediate:
         plot_average_epoch(epochs)
-    print("Bandpass & notch...")
+    
+    # Bandpass and notch filter
     epochs = bandpass_notch(epochs)
     if plot_intermediate:
         plot_average_epoch(epochs)
-    print("Rereference...")
-    rereference(epochs)
-    if plot_intermediate:
-        plot_average_epoch(epochs)
-    print("ICA 2...")
+    
+    # Second ICA filter
     ICA_2(epochs)
     if plot_intermediate:
         plot_average_epoch(epochs)
-    print("Baseline...")
+    
+    # Rereference (average)
+    rereference(epochs)
+    if plot_intermediate:
+        plot_average_epoch(epochs)
+    
+    # Baseline correction
     baseline(epochs)
 
     if plot_result:
         plot_full_average_epoch(
             epochs, finalplot_electrodes, finalplot_start, finalplot_end
         )
-
+        plot_full_average_epoch(
+            epochs, None, finalplot_start, finalplot_end
+        )
+        
+        
     if save_result:
         filename = os.path.basename(filename)
         filename_base, filename_ext = os.path.splitext(filename)
