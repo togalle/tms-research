@@ -63,7 +63,7 @@ def plot_response(eeg):
         eeg, channel="Pz", tmin=-0.05, tmax=0.05
     )  # Check for TMS pulse
 
-def plot_full_average_epoch(epochs, electrodes=None, start=-0.05, end=0.25, plot_gmfp=True):
+def plot_aggregated_average_epoch(epochs, electrodes=None, start=-0.05, end=0.25, plot_gmfp=True):
     epochs = epochs.copy()
     if electrodes is not None:
         epochs.pick_channels(electrodes)
@@ -84,8 +84,15 @@ def plot_full_average_epoch(epochs, electrodes=None, start=-0.05, end=0.25, plot
         alpha=0.2,
     )
     if plot_gmfp:
-        gmfp = np.std(data, axis=1).mean(axis=0)[selected_indices]
-        plt.plot(selected_time_points, gmfp, label="GMFP")
+        data = epochs.get_data()
+        average_epoch = np.mean(data, axis=0)
+        mean = np.mean(average_epoch, axis=0, keepdims=True)
+        diff = average_epoch - mean
+        squared_diff = np.square(diff)
+        sum_squared_diff = np.sum(squared_diff, axis=0)
+        gmfp = np.sqrt(sum_squared_diff / average_epoch.shape[0])
+    
+        plt.plot(selected_time_points, gmfp[selected_indices], label="GMFP")
     plt.xlabel("Time points")
     plt.ylabel("Mean response")
     plt.legend()
@@ -332,22 +339,23 @@ def clean_spTEP(
         plot_average_epoch(epochs)
     
     # Rereference (average)
-    rereference(epochs)
-    if plot_intermediate:
-        plot_average_epoch(epochs)
+    # rereference(epochs)
+    # if plot_intermediate:
+    #     plot_average_epoch(epochs)
     
     # Baseline correction
     baseline(epochs)
 
     if plot_result:
-        
+        logger.info("Plotting all electrodes")
         plot_average_epoch(epochs)
-        plot_average_epoch(epochs, electrodes=["FC1"])
-        plot_full_average_epoch(
-            epochs, finalplot_electrodes, finalplot_start, finalplot_end
-        )
-        plot_full_average_epoch(
+        plot_aggregated_average_epoch(
             epochs, None, finalplot_start, finalplot_end
+        )
+        logger.info("Plotting source electrode(s)")
+        plot_average_epoch(epochs, electrodes=["FC1"])
+        plot_aggregated_average_epoch(
+            epochs, finalplot_electrodes, finalplot_start, finalplot_end
         )
         
     if save_result:
