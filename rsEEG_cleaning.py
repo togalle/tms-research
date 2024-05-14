@@ -7,15 +7,10 @@ from mne_icalabel import label_components
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import utils
-import logging
-import colorlog
+from autoreject import AutoReject
 
-handler = colorlog.StreamHandler()
-handler.setFormatter(colorlog.ColoredFormatter('%(log_color)s[%(asctime)s] - %(levelname)s - %(message)s'))
 
-logger = colorlog.getLogger("rsEEG_cleaning")
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+logger = utils.get_logger()
 
 # -----------------------------------------------------------------------------
 
@@ -130,12 +125,29 @@ def ICA(eeg_data):
 
 def rereference(eeg_data):
     eeg_data.set_eeg_reference(ref_channels="average")
+    
+def rsEEG_epoch(eeg_data, duration=2.0):
+    """Create an epochs object from the raw brainvision data, where each epoch is 2 seconds long and got baseline corrected using the last 500ms of the previous epoch
+
+    Args:
+        eeg_data (Any): full EEG data
+    """
+    
+    events = mne.make_fixed_length_events(eeg_data, duration=duration)
+    epochs = mne.Epochs(eeg_data, events, baseline=(None, None), tmin=0, tmax=duration, preload=True)
+    
+    return epochs
+
+def autoreject(epochs):
+    ar = AutoReject()
+    epochs_clean = ar.fit_transform(epochs)
+    return epochs_clean
 
 # -----------------------------------------------------------------------------
 
 # Pipeline function
 
-def clean_spTEP(
+def clean_rsEEG(
     filename,
     eeg_data_raw,
     plot_intermediate=False,
@@ -177,7 +189,9 @@ def clean_spTEP(
     if plot_intermediate:
         plot_response(eeg_data)
     
-    # TODO: epoching
+    epochs = rsEEG_epoch(eeg_data)
+    
+    epochs = autoreject(epochs)
     
     if save_result:
         filename = os.path.basename(filename)
@@ -188,3 +202,5 @@ def clean_spTEP(
             os.makedirs(foldername)
 
         eeg_data.save(os.path.join(foldername, filename), overwrite=True)
+    else:
+        return epochs
