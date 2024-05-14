@@ -9,15 +9,8 @@ from mne_icalabel import label_components
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import utils
-import logging
-import colorlog
 
-handler = colorlog.StreamHandler()
-handler.setFormatter(colorlog.ColoredFormatter('%(log_color)s[%(asctime)s] - %(levelname)s - %(message)s'))
-
-logger = colorlog.getLogger("spTEP_cleaning")
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+logger = utils.get_logger()
 
 # -----------------------------------------------------------------------------
 
@@ -86,13 +79,20 @@ def plot_aggregated_average_epoch(epochs, electrodes=None, start=-0.05, end=0.25
     if plot_gmfp:
         data = epochs.get_data()
         average_epoch = np.mean(data, axis=0)
-        mean = np.mean(average_epoch, axis=0, keepdims=True)
-        diff = average_epoch - mean
-        squared_diff = np.square(diff)
-        sum_squared_diff = np.sum(squared_diff, axis=0)
-        gmfp = np.sqrt(sum_squared_diff / average_epoch.shape[0])
+        # mean = np.mean(average_epoch, axis=0, keepdims=True)
+        # diff = average_epoch - mean
+        # squared_diff = np.square(diff)
+        # sum_squared_diff = np.sum(squared_diff, axis=0)
+        # gmfp = np.sqrt(sum_squared_diff / average_epoch.shape[0])
+        
+        gmfa = np.std(average_epoch, axis=0)
     
-        plt.plot(selected_time_points, gmfp[selected_indices], label="GMFP")
+        # print the total difference between gmfp and gmfa
+        # logger.info("Difference between GMFP and GMFA")
+        # logger.info(np.sum(gmfp - gmfa))
+    
+        # plt.plot(selected_time_points, gmfp[selected_indices], label="GMFP")
+        plt.plot(selected_time_points, gmfa[selected_indices], label="GMFA")
     plt.xlabel("Time points")
     plt.ylabel("Mean response")
     plt.legend()
@@ -266,11 +266,17 @@ def remove_epoch_portion(epochs, start_time=-0.005, end_time=0.015):
     return epochs
 
 
+def interpolate_channels(raw, bad_channels):
+    raw.info['bads'] = bad_channels
+    raw.interpolate_bads()
+
+
 # -----------------------------------------------------------------------------
 
 def clean_spTEP(
     filename,
     eeg_data_raw,
+    bad_channels=None,
     plot_intermediate=False,
     interpolate_start=0.005,
     interpolate_end=0.015,
@@ -292,6 +298,10 @@ def clean_spTEP(
 
     # Remove EOG channels
     remove_EOG(eeg_data_copy)
+    
+    # Interpolate bad channels
+    if bad_channels is not None:
+        interpolate_channels(eeg_data_copy, bad_channels)
     
     # Remove TMS pulse and interpolate
     interpolate_TMS_pulse(
@@ -339,9 +349,9 @@ def clean_spTEP(
         plot_average_epoch(epochs)
     
     # Rereference (average)
-    # rereference(epochs)
-    # if plot_intermediate:
-    #     plot_average_epoch(epochs)
+    rereference(epochs)
+    if plot_intermediate:
+        plot_average_epoch(epochs)
     
     # Baseline correction
     baseline(epochs)
@@ -367,3 +377,5 @@ def clean_spTEP(
             os.makedirs(foldername)
 
         epochs.save(os.path.join(foldername, filename), overwrite=True)
+    else:
+        return epochs
