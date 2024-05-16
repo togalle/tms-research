@@ -6,7 +6,6 @@ import numpy as np
 import mne
 from mne.preprocessing import ICA
 from mne_icalabel import label_components
-import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import utils
 
@@ -97,7 +96,7 @@ def ICA_1(epoch_data, T=3.5, b1=0.011, b2=0.030, n_components=20):
 
     # Credits to Arne Callaert for the following code
     sources = ica.get_sources(epoch_data)
-    averaged_sources = sources.get_data().mean(axis=0)
+    averaged_sources = sources.get_data(copy=False).mean(axis=0)
     times = sources.times
     sfreq = sources.info["sfreq"]
     indices = np.where((times >= (b1 / 1000)) & (times <= (b2 / 1000)))
@@ -212,7 +211,7 @@ def clean_spTEP(
 
     if plot_intermediate:
         logger.info("Plotting original signal")
-        utils.plot_average_response(eeg_data_copy, tmin=-0.05, tmax=0.25)
+        utils.plot_average_response(eeg_data_copy, tmin=-0.05, tmax=1)
 
     # Remove EOG channels
     remove_EOG(eeg_data_copy)
@@ -230,7 +229,7 @@ def clean_spTEP(
         eeg_data_copy.info["sfreq"],
     )
     if plot_intermediate:
-        utils.plot_average_response(eeg_data_copy, tmin=-0.05, tmax=0.25)  # Check full response
+        utils.plot_average_response(eeg_data_copy, tmin=-0.05, tmax=1)  # Check full response
         utils.plot_single_response(
             eeg_data_copy, channel="Pz", tmin=-0.05, tmax=0.05
         )  # Check interpolation

@@ -72,8 +72,8 @@ def plot_rsEEG_raw_average(raw, duration=2, electrodes=None):
     # Plot the average response of the raw rsEEG data.
     
     events = mne.make_fixed_length_events(raw, duration=duration)
-    epochs = mne.Epochs(raw, events, baseline=(None, None), tmin=0, tmax=duration, preload=True)
-    plot_epochs_average(epochs, 0, duration, electrodes)
+    epochs = mne.Epochs(raw, events, baseline=None, tmin=0, tmax=duration, preload=True)
+    plot_epochs_average(epochs, 0 - (duration / 2), duration / 2, electrodes)
 
 
 def plot_epochs_average_total(epochs, electrodes=None, start=-0.05, end=0.25, plot_gmfp=True):
@@ -99,7 +99,7 @@ def plot_epochs_average_total(epochs, electrodes=None, start=-0.05, end=0.25, pl
         alpha=0.2,
     )
     if plot_gmfp:
-        data = epochs.get_data()
+        data = epochs.get_data(copy=False)
         average_epoch = np.mean(data, axis=0)        
         gmfa = np.std(average_epoch, axis=0)
         plt.plot(selected_time_points, gmfa[selected_indices], label="GMFA")
@@ -108,14 +108,15 @@ def plot_epochs_average_total(epochs, electrodes=None, start=-0.05, end=0.25, pl
     plt.legend()
     plt.show()
     
-def plot_epochs_gmfa(epochs):
+def plot_epochs_gmfa(epochs, start=-0.05, end=0.25):
     # Generate a plot where the grand mean field amplitude (GMFA) is plotted.
     
-    data = epochs.get_data()
+    data = epochs.get_data(copy=False)
     average_epoch = np.mean(data, axis=0)
     gmfa = np.std(average_epoch, axis=0)
     time_points = np.linspace(-1, 1, data.shape[2])
     plt.plot(time_points, gmfa)
     plt.xlabel("Time points")
     plt.ylabel("GMFA")
+    plt.xlim([start, end])
     plt.show()

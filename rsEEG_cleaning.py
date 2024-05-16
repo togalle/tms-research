@@ -4,7 +4,6 @@ import numpy as np
 import mne
 from mne.preprocessing import ICA
 from mne_icalabel import label_components
-import matplotlib.pyplot as plt
 import utils
 from autoreject import AutoReject
 
@@ -63,10 +62,10 @@ def rsEEG_epoch(eeg_data, duration=2.0):
         eeg_data (Any): full EEG data
     """
     
-    logger.info("Rereferencing to average")
+    logger.info("Epoching")
     
     events = mne.make_fixed_length_events(eeg_data, duration=duration)
-    epochs = mne.Epochs(eeg_data, events, baseline=(None, None), tmin=0, tmax=duration, preload=True)
+    epochs = mne.Epochs(eeg_data, events, baseline=(0, 0), tmin=0, tmax=duration, preload=True)
     
     return epochs
 
@@ -125,12 +124,12 @@ def clean_rsEEG(
     # Epoching
     epochs = rsEEG_epoch(eeg_data)
     if plot_intermediate:
-        utils.plot_epochs_average(epochs)
+        utils.plot_epochs_average(epochs, start=-1, end=1)
     
     # Reject bad epochs
     epochs = autoreject(epochs)
     if plot_intermediate:
-        utils.plot_epochs_average(epochs)
+        utils.plot_epochs_average(epochs, start=-1, end=1)
     
     if save_result:
         if filename == None:
