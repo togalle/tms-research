@@ -14,92 +14,6 @@ logger = utils.get_logger()
 
 # -----------------------------------------------------------------------------
 
-# Plotting utilities
-
-def plot_single_response(eeg_data, channel="Pz", tmin=-0.005, tmax=0.01):
-    events, event_dict = mne.events_from_annotations(eeg_data)
-    event_id = event_dict["Stimulus/S  1"]
-    epochs = mne.Epochs(
-        eeg_data,
-        events,
-        event_id=event_id,
-        tmin=tmin,
-        tmax=tmax,
-        baseline=None,
-        preload=True,
-        picks=channel,
-    )
-
-    epochs.plot(picks=channel, n_epochs=1, show=True, scalings={"eeg": 50e-4})
-
-
-def plot_average_epoch(epochs, start=-0.05, end=0.25, electrodes=None):
-    epochs = epochs.copy()
-    if electrodes is not None:
-        epochs.pick_channels(electrodes)
-    data = epochs.get_data(copy=False)
-    mean_responses = np.mean(data, axis=0)
-    time_points = np.linspace(-1, 1, data.shape[2])
-    selected_indices = np.where((time_points >= start) & (time_points <= end))
-    for i, mean_response in enumerate(mean_responses):
-        selected_data = mean_response[selected_indices]
-        selected_time_points = time_points[selected_indices]
-        plt.plot(selected_time_points, selected_data, label=f"Channel {i+1}")
-    plt.xlabel("Time points")
-    plt.ylabel("Mean response")
-    plt.show()
-
-
-def plot_response(eeg):
-    utils.plot_average_response(eeg, tmin=-0.05, tmax=0.25)  # Check full response
-    utils.plot_single_response(
-        eeg, channel="Pz", tmin=-0.05, tmax=0.05
-    )  # Check for TMS pulse
-
-def plot_aggregated_average_epoch(epochs, electrodes=None, start=-0.05, end=0.25, plot_gmfp=True):
-    epochs = epochs.copy()
-    if electrodes is not None:
-        epochs.pick_channels(electrodes)
-    data = epochs.get_data(copy=False)
-    mean_responses = np.mean(data, axis=(0, 1))
-    sem_responses = np.std(data, axis=(0, 1)) / np.sqrt(data.shape[0])
-    time_points = np.linspace(-1, 1, data.shape[2])
-    selected_indices = np.where((time_points >= start) & (time_points <= end))
-    selected_data = mean_responses[selected_indices]
-    selected_sem = sem_responses[selected_indices]
-    selected_time_points = time_points[selected_indices]
-    plt.plot(selected_time_points, selected_data, label="Average of all electrodes")
-    plt.fill_between(
-        selected_time_points,
-        selected_data - selected_sem,
-        selected_data + selected_sem,
-        color="b",
-        alpha=0.2,
-    )
-    if plot_gmfp:
-        data = epochs.get_data()
-        average_epoch = np.mean(data, axis=0)
-        # mean = np.mean(average_epoch, axis=0, keepdims=True)
-        # diff = average_epoch - mean
-        # squared_diff = np.square(diff)
-        # sum_squared_diff = np.sum(squared_diff, axis=0)
-        # gmfp = np.sqrt(sum_squared_diff / average_epoch.shape[0])
-        
-        gmfa = np.std(average_epoch, axis=0)
-    
-        # print the total difference between gmfp and gmfa
-        # logger.info("Difference between GMFP and GMFA")
-        # logger.info(np.sum(gmfp - gmfa))
-    
-        # plt.plot(selected_time_points, gmfp[selected_indices], label="GMFP")
-        plt.plot(selected_time_points, gmfa[selected_indices], label="GMFA")
-    plt.xlabel("Time points")
-    plt.ylabel("Mean response")
-    plt.legend()
-    plt.show()
-
-# -----------------------------------------------------------------------------
-
 # Cleaning functions
 
 def remove_EOG(eeg_data):
@@ -296,6 +210,10 @@ def clean_spTEP(
     events, event_dict = mne.events_from_annotations(eeg_data_raw)
     tms_indices = [event[0] for event in events if event[2] == 1]
 
+    if plot_intermediate:
+        logger.info("Plotting original signal")
+        utils.plot_average_response(eeg_data_copy, tmin=-0.05, tmax=0.25)
+
     # Remove EOG channels
     remove_EOG(eeg_data_copy)
     
@@ -312,7 +230,10 @@ def clean_spTEP(
         eeg_data_copy.info["sfreq"],
     )
     if plot_intermediate:
-        plot_response(eeg_data_copy)
+        utils.plot_average_response(eeg_data_copy, tmin=-0.05, tmax=0.25)  # Check full response
+        utils.plot_single_response(
+            eeg_data_copy, channel="Pz", tmin=-0.05, tmax=0.05
+        )  # Check interpolation
     
     # Downsample
     downsample(eeg_data_copy)
@@ -320,12 +241,12 @@ def clean_spTEP(
     # Epoch
     epochs = epoching(eeg_data_copy)
     if plot_intermediate:
-        plot_average_epoch(epochs)
+        utils.plot_epochs_average(epochs, start=-0.05, end=1)
     
     # Demeaning
     epochs = demean_epochs(epochs)
     if plot_intermediate:
-        plot_average_epoch(epochs)
+        utils.plot_epochs_average(epochs, start=-0.05, end=1)
     
     # First ICA filter
     ICA_1(
@@ -336,37 +257,38 @@ def clean_spTEP(
         n_components=ICA1_n_components,
     )
     if plot_intermediate:
-        plot_average_epoch(epochs)
+        utils.plot_epochs_average(epochs, start=-0.05, end=1)
     
     # Bandpass and notch filter
     epochs = bandpass_notch(epochs)
     if plot_intermediate:
-        plot_average_epoch(epochs)
+        utils.plot_epochs_average(epochs, start=-0.05, end=1)
     
     # Second ICA filter
     ICA_2(epochs)
     if plot_intermediate:
-        plot_average_epoch(epochs)
+        utils.plot_epochs_average(epochs, start=-0.05, end=1)
     
     # Rereference (average)
     rereference(epochs)
     if plot_intermediate:
-        plot_average_epoch(epochs)
+        utils.plot_epochs_average(epochs, start=-0.05, end=1)
     
     # Baseline correction
     baseline(epochs)
 
     if plot_result:
-        logger.info("Plotting all electrodes")
-        plot_average_epoch(epochs)
-        plot_aggregated_average_epoch(
-            epochs, None, finalplot_start, finalplot_end
-        )
-        logger.info("Plotting source electrode(s)")
-        plot_average_epoch(epochs, electrodes=["FC1"])
-        plot_aggregated_average_epoch(
-            epochs, finalplot_electrodes, finalplot_start, finalplot_end
-        )
+        logger.info("Plotting result")
+        utils.plot_epochs_average(epochs, start=-0.05, end=1)
+        utils.plot_epochs_gmfa(epochs)
+        # utils.plot_epochs_average_total(
+        #     epochs, None, finalplot_start, finalplot_end
+        # )
+        # logger.info("Plotting source electrode(s)")
+        # utils.plot_epochs_average(epochs, electrodes=["FC1"])
+        # utils.plot_epochs_average_total(
+        #     epochs, finalplot_electrodes, finalplot_start, finalplot_end
+        # )
         
     if save_result:
         filename = os.path.basename(filename)

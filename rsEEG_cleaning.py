@@ -5,84 +5,11 @@ import mne
 from mne.preprocessing import ICA
 from mne_icalabel import label_components
 import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d
 import utils
 from autoreject import AutoReject
 
 
 logger = utils.get_logger()
-
-# -----------------------------------------------------------------------------
-
-# Plotting utilities
-
-def plot_single_response(eeg_data, channel="Pz", tmin=-0.005, tmax=0.01):
-    events, event_dict = mne.events_from_annotations(eeg_data)
-    event_id = event_dict["Stimulus/S  1"]
-    epochs = mne.Epochs(
-        eeg_data,
-        events,
-        event_id=event_id,
-        tmin=tmin,
-        tmax=tmax,
-        baseline=None,
-        preload=True,
-        picks=channel,
-    )
-
-    epochs.plot(picks=channel, n_epochs=1, show=True, scalings={"eeg": 50e-4})
-
-
-def plot_average_epoch(epochs, start=-0.05, end=0.25, electrodes=None):
-    epochs = epochs.copy()
-    if electrodes is not None:
-        epochs.pick_channels(electrodes)
-    data = epochs.get_data(copy=False)
-    mean_responses = np.mean(data, axis=0)
-    time_points = np.linspace(-1, 1, data.shape[2])
-    selected_indices = np.where((time_points >= start) & (time_points <= end))
-    for i, mean_response in enumerate(mean_responses):
-        selected_data = mean_response[selected_indices]
-        selected_time_points = time_points[selected_indices]
-        plt.plot(selected_time_points, selected_data, label=f"Channel {i+1}")
-    plt.xlabel("Time points")
-    plt.ylabel("Mean response")
-    plt.show()
-
-
-def plot_response(eeg):
-    utils.plot_average_response(eeg, tmin=-0.05, tmax=0.25)  # Check full response
-    utils.plot_single_response(
-        eeg, channel="Pz", tmin=-0.05, tmax=0.05
-    )  # Check for TMS pulse
-
-def plot_full_average_epoch(epochs, electrodes=None, start=-0.05, end=0.25, plot_gmfp=True):
-    epochs = epochs.copy()
-    if electrodes is not None:
-        epochs.pick_channels(electrodes)
-    data = epochs.get_data(copy=False)
-    mean_responses = np.mean(data, axis=(0, 1))
-    sem_responses = np.std(data, axis=(0, 1)) / np.sqrt(data.shape[0])
-    time_points = np.linspace(-1, 1, data.shape[2])
-    selected_indices = np.where((time_points >= start) & (time_points <= end))
-    selected_data = mean_responses[selected_indices]
-    selected_sem = sem_responses[selected_indices]
-    selected_time_points = time_points[selected_indices]
-    plt.plot(selected_time_points, selected_data, label="Average of all electrodes")
-    plt.fill_between(
-        selected_time_points,
-        selected_data - selected_sem,
-        selected_data + selected_sem,
-        color="b",
-        alpha=0.2,
-    )
-    if plot_gmfp:
-        gmfp = np.std(data, axis=1).mean(axis=0)[selected_indices]
-        plt.plot(selected_time_points, gmfp, label="GMFP")
-    plt.xlabel("Time points")
-    plt.ylabel("Mean response")
-    plt.legend()
-    plt.show()
 
 # -----------------------------------------------------------------------------
 
@@ -99,17 +26,18 @@ def downsample(eeg_data, sample_rate=1000):
 
 
 def demean(eeg_data_raw):
+    logger.info("Demeaning")
     eeg_data_raw.apply_function(lambda x: x - np.mean(x))
-    
+
 
 def bandpass_notch(eeg_data, l_freq=1, h_freq=100, notch_freqs=[50]):
+    logger.info(f"Bandpass filtering between {l_freq} and {h_freq} Hz, and notch filtering at {notch_freqs} Hz")
     eeg_data.filter(l_freq, h_freq)
     eeg_data.notch_filter(notch_freqs)
-    
-
 
 def ICA(eeg_data):
-    ica = ICA(n_components=20, random_state=97)
+    logger.info("Applying ICA")
+    ica = mne.preprocessing.ICA(n_components=20, random_state=42)
     ica.fit(eeg_data)
     ic_labels = label_components(eeg_data, ica, method="iclabel")
     
@@ -124,8 +52,10 @@ def ICA(eeg_data):
 
 
 def rereference(eeg_data):
+    logger.info("Rereferencing to average")
     eeg_data.set_eeg_reference(ref_channels="average")
-    
+
+
 def rsEEG_epoch(eeg_data, duration=2.0):
     """Create an epochs object from the raw brainvision data, where each epoch is 2 seconds long and got baseline corrected using the last 500ms of the previous epoch
 
@@ -133,12 +63,16 @@ def rsEEG_epoch(eeg_data, duration=2.0):
         eeg_data (Any): full EEG data
     """
     
+    logger.info("Rereferencing to average")
+    
     events = mne.make_fixed_length_events(eeg_data, duration=duration)
     epochs = mne.Epochs(eeg_data, events, baseline=(None, None), tmin=0, tmax=duration, preload=True)
     
     return epochs
 
+
 def autoreject(epochs):
+    logger.info("Rejecting bad epochs")
     ar = AutoReject()
     epochs_clean = ar.fit_transform(epochs)
     return epochs_clean
@@ -148,12 +82,10 @@ def autoreject(epochs):
 # Pipeline function
 
 def clean_rsEEG(
-    filename,
     eeg_data_raw,
     plot_intermediate=False,
-    plot_result=False,
-    finalplot_electrodes=None,
-    save_result=True,
+    save_result=False,
+    filename=None,
 ):
     mne.set_log_level("WARNING")
 
@@ -162,38 +94,47 @@ def clean_rsEEG(
     # Remove EOG
     remove_EOG(eeg_data)
     if plot_intermediate:
-        plot_response(eeg_data)
+        # plot_response(eeg_data)
+        utils.plot_rsEEG_raw_average(eeg_data)
     
     # Downsample
     downsample(eeg_data)
     if plot_intermediate:
-        plot_response(eeg_data)
+        utils.plot_rsEEG_raw_average(eeg_data)
     
     # Demean
     demean(eeg_data)
     if plot_intermediate:
-        plot_response(eeg_data)
+        utils.plot_rsEEG_raw_average(eeg_data)
     
     # Bandpass and notch filter
     bandpass_notch(eeg_data)
     if plot_intermediate:
-        plot_response(eeg_data)
+        utils.plot_rsEEG_raw_average(eeg_data)
     
     # ICA filter
     ICA(eeg_data)
     if plot_intermediate:
-        plot_response(eeg_data)
+        utils.plot_rsEEG_raw_average(eeg_data)
     
     # Rereference
     rereference(eeg_data)
     if plot_intermediate:
-        plot_response(eeg_data)
+        utils.plot_rsEEG_raw_average(eeg_data)
     
+    # Epoching
     epochs = rsEEG_epoch(eeg_data)
+    if plot_intermediate:
+        utils.plot_epochs_average(epochs)
     
+    # Reject bad epochs
     epochs = autoreject(epochs)
+    if plot_intermediate:
+        utils.plot_epochs_average(epochs)
     
     if save_result:
+        if filename == None:
+            filename = eeg_data.filename
         filename = os.path.basename(filename)
         filename_base, filename_ext = os.path.splitext(filename)
         filename = filename_base + "_filtered-epo.fif"
