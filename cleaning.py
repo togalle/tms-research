@@ -9,17 +9,21 @@ from utils import get_logger
 logger = get_logger()
 
 def process_file(file_path, output_path):
+
     raw = mne.io.read_raw_brainvision(file_path, preload=True)
 
     if "spTEP" in file_path:
-        epochs = clean_spTEP(file_path, raw, plot_result=True, save_result=False)
+        epochs = clean_spTEP(raw, plot_result=True, save_result=False)
     elif "rsEEG" in file_path:
-        epochs = clean_rsEEG(file_path, raw, plot_result=True, save_result=False)
+        epochs = clean_rsEEG(raw, save_result=False)
     else:
         logger.error(f"Unknown file type: {file_path}")
         return
     
-    output_file = os.path.join(output_path, os.path.basename(file_path))
+    filename = os.path.basename(file_path)
+    filename = os.path.splitext(filename)[0]
+    output_file = os.path.join(output_path, filename + "-epo.fif")
+    
     epochs.save(output_file)
 
 def process_folder(folder_path, output_path):

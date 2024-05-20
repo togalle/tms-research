@@ -187,7 +187,6 @@ def interpolate_channels(raw, bad_channels):
 # -----------------------------------------------------------------------------
 
 def clean_spTEP(
-    filename,
     eeg_data_raw,
     bad_channels=None,
     plot_intermediate=False,
@@ -202,6 +201,7 @@ def clean_spTEP(
     finalplot_start=-0.05,
     finalplot_end=0.25,
     save_result=True,
+    filename=None,
 ):
     mne.set_log_level("WARNING")
 
