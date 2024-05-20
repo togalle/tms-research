@@ -32,6 +32,10 @@ def process_folder(folder_path, output_path):
         for file in os.listdir(folder_path)
         if file.endswith(".vhdr")
     ]
+    
+    # Create output folder if it doesn't exist
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = [executor.submit(process_file, file, output_path) for file in files]
