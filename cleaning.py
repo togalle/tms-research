@@ -26,7 +26,7 @@ def process_file(file_path, output_path):
     
     logger.info(f"Saving {output_file}")
     
-    epochs.save(output_file)
+    epochs.save(output_file, overwrite=True)
 
 def process_folder(folder_path, output_path, max_workers=4):
     """
