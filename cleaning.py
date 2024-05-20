@@ -24,6 +24,8 @@ def process_file(file_path, output_path):
     filename = os.path.splitext(filename)[0]
     output_file = os.path.join(output_path, filename + "-epo.fif")
     
+    logger.info(f"Saving {output_file}")
+    
     epochs.save(output_file)
 
 def process_folder(folder_path, output_path, max_workers=4):
