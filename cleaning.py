@@ -26,7 +26,7 @@ def process_file(file_path, output_path):
     
     epochs.save(output_file)
 
-def process_folder(folder_path, output_path):
+def process_folder(folder_path, output_path, max_workers=4):
     """
     Cleans all the files in the folder_path and saves the cleaned files in the output_path.
     """
@@ -41,7 +41,7 @@ def process_folder(folder_path, output_path):
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(process_file, file, output_path) for file in files]
         for f in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
             pass
