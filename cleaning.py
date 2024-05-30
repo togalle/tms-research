@@ -28,7 +28,7 @@ def process_file(file_path, output_path):
     
     epochs.save(output_file, overwrite=True)
 
-def process_folder(folder_path, output_path, max_workers=4):
+def process_folder(folder_path, output_path, max_workers=4, parallel=True):
     """
     Cleans all the files in the folder_path and saves the cleaned files in the output_path.
     """
@@ -36,14 +36,18 @@ def process_folder(folder_path, output_path, max_workers=4):
     files = [
         os.path.join(folder_path, file)
         for file in os.listdir(folder_path)
-        if file.endswith(".vhdr")
+        if file.endswith(".vhdr") and "rsEEG" in file
     ]
     
     # Create output folder if it doesn't exist
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(process_file, file, output_path) for file in files]
-        for f in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
-            pass
+    if parallel:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(process_file, file, output_path) for file in files]
+            for f in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
+                pass
+    else:
+        for file in files:
+            process_file(file, output_path)
