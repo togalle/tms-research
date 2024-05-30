@@ -5,7 +5,7 @@ import mne
 from mne.preprocessing import ICA
 from mne_icalabel import label_components
 import utils
-from autoreject import AutoReject
+from autoreject import AutoReject, get_rejection_threshold
 
 
 logger = utils.get_logger()
@@ -70,10 +70,14 @@ def rsEEG_epoch(eeg_data, duration=2.0):
     return epochs
 
 
-def autoreject(epochs):
+def autoreject(epochs, transform_bads=True):
     logger.info("Rejecting bad epochs")
-    ar = AutoReject()
-    epochs_clean = ar.fit_transform(epochs)
+    if transform_bads:
+        ar = AutoReject(n_jobs=3, picks="eeg")
+        epochs_clean = ar.fit_transform(epochs)
+    else:
+        reject = get_rejection_threshold(epochs, decim=2, ch_types=["eeg"])
+        epochs_clean = epochs.drop_bad(reject=reject)
     return epochs_clean
 
 # -----------------------------------------------------------------------------
