@@ -2,4 +2,5 @@ dataset
 .idea
 *.fif
 *.pyc
+*.csv
 __pycache__
