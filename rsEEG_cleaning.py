@@ -34,20 +34,31 @@ def bandpass_notch(eeg_data, l_freq=1, h_freq=100, notch_freqs=[50]):
     eeg_data.filter(l_freq, h_freq)
     eeg_data.notch_filter(notch_freqs)
 
+
 def ICA(eeg_data):
     logger.info("Applying ICA")
     ica = mne.preprocessing.ICA(n_components=20, random_state=42)
     ica.fit(eeg_data)
-    ic_labels = label_components(eeg_data, ica, method="iclabel")
     
+    # iclabel
+    ic_labels = label_components(eeg_data, ica, method="iclabel")
     labels = ic_labels["labels"]
-    exclude_idx = [
+    exclude_idx = [w
         idx for idx, label in enumerate(labels) if label not in ["brain", "other"]
     ]
+    logger.info(f"icalabel components: {exclude_idx}")
     
-    print(f"Excluding ICA components: {exclude_idx}") 
+    # EOG channels
+    eog_indices, eog_scores = ica.find_bads_eog(eeg_data, ch_name=["HEOG", "VEOG"])
+    logger.info(f"EOG components: {eog_indices}")
+
+    # merge indices
+    exclude_idx = list(set(exclude_idx + eog_indices))
+    logger.info(f"Excluding components: {exclude_idx}")
     
     ica.apply(eeg_data, exclude=exclude_idx)
+    
+    return eeg_data
 
 
 def rereference(eeg_data):
@@ -93,12 +104,6 @@ def clean_rsEEG(
     mne.set_log_level("WARNING")
 
     eeg_data = eeg_data_raw.copy()
-
-    # Remove EOG
-    remove_EOG(eeg_data)
-    if plot_intermediate:
-        # plot_response(eeg_data)
-        utils.plot_rsEEG_raw_average(eeg_data)
     
     # Downsample
     downsample(eeg_data)
@@ -118,6 +123,12 @@ def clean_rsEEG(
     # ICA filter
     ICA(eeg_data)
     if plot_intermediate:
+        utils.plot_rsEEG_raw_average(eeg_data)
+
+    # Remove EOG
+    remove_EOG(eeg_data)
+    if plot_intermediate:
+        # plot_response(eeg_data)
         utils.plot_rsEEG_raw_average(eeg_data)
     
     # Rereference
