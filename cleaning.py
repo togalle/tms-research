@@ -36,7 +36,9 @@ def process_folder(folder_path, output_path, max_workers=4, parallel=True):
     files = [
         os.path.join(folder_path, file)
         for file in os.listdir(folder_path)
-        if file.endswith(".vhdr") and "rsEEG" in file
+        if file.endswith(".vhdr")
+        # and "rsEEG" in file
+        # and "spTEP" in file
     ]
     
     # Create output folder if it doesn't exist
