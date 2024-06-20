@@ -146,13 +146,17 @@ def ICA_2(epoch_data):
     ica.fit(epoch_data)
     ic_labels = label_components(epoch_data, ica, method="iclabel")
 
-    # print(ic_labels["labels"])
-
     labels = ic_labels["labels"]
     exclude_idx = [
         idx for idx, label in enumerate(labels) if label not in ["brain", "other"]
     ]
-    # print(f"Excluding these {len(exclude_idx)} ICA components: {exclude_idx}")
+    logger.info(f"ICA-label components: {exclude_idx}")
+
+    eog_indices, eog_scores = ica.find_bads_eog(epoch_data, ch_name=["HEOG", "VEOG"])
+    logger.info(f"EOG components: {eog_indices}")
+
+    # merge indices
+    exclude_idx = list(set(exclude_idx + eog_indices))
 
     ica.apply(epoch_data, exclude=exclude_idx)
 
