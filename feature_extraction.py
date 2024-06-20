@@ -79,6 +79,5 @@ def create_labels_csv(directory, metadata_csv, output_csv, modality_mapping={'rs
             data.append([filename, procedure, patient_id, eeg_type, pre_post])
             
             logger.info(f'Added entry to labels.csv: {filename}, {patient_id}, {procedure}, {eeg_type}, {pre_post}')
-    print(data)
-    df = pd.DataFrame(data, columns=['filename', 'patient', 'procedure', 'modality', 'timing'])
-    df.to_csv(output_csv, index=False, sep=";")
+    df = pd.DataFrame(data, columns=['filename', 'procedure', 'patient', 'modality', 'timing'])
+    df.to_csv(output_csv, index=False, sep=",")
