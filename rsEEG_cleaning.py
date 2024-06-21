@@ -16,23 +16,27 @@ logger = utils.get_logger()
 
 def remove_EOG(eeg_data):
     logger.info("Removing EOG channels")
-    eeg_data.drop_channels(["HEOG", "VEOG"])
+    eeg_data = eeg_data.drop_channels(["HEOG", "VEOG"])
+    return eeg_data
 
 
 def downsample(eeg_data, sample_rate=1000):
     logger.info(f"Downsampling to {sample_rate} Hz")
-    eeg_data.resample(sample_rate, npad="auto")
+    eeg_data = eeg_data.resample(sample_rate, npad="auto")
+    return eeg_data
 
 
-def demean(eeg_data_raw):
+def demean(eeg_data):
     logger.info("Demeaning")
-    eeg_data_raw.apply_function(lambda x: x - np.mean(x))
+    eeg_data = eeg_data.apply_function(lambda x: x - np.mean(x))
+    return eeg_data
 
 
 def bandpass_notch(eeg_data, l_freq=1, h_freq=100, notch_freqs=[50]):
     logger.info(f"Bandpass filtering between {l_freq} and {h_freq} Hz, and notch filtering at {notch_freqs} Hz")
-    eeg_data.filter(l_freq, h_freq)
-    eeg_data.notch_filter(notch_freqs)
+    eeg_data = eeg_data.filter(l_freq, h_freq)
+    eeg_data = eeg_data.notch_filter(notch_freqs)
+    return eeg_data
 
 
 def ICA(eeg_data):
@@ -42,28 +46,33 @@ def ICA(eeg_data):
     
     # iclabel
     ic_labels = label_components(eeg_data, ica, method="iclabel")
+    logger.info(ic_labels)
     labels = ic_labels["labels"]
+    proba = ic_labels["y_pred_proba"]
     exclude_idx = [
-        idx for idx, label in enumerate(labels) if label not in ["brain", "other"]
+        idx for idx, label in enumerate(labels) if label not in ["brain", "other"] and proba[idx] > 0.8
     ]
     logger.info(f"icalabel components: {exclude_idx}")
     
     # EOG channels
-    eog_indices, eog_scores = ica.find_bads_eog(eeg_data, ch_name=["HEOG", "VEOG"])
+    eog_indices, eog_scores = ica.find_bads_eog(eeg_data, ch_name="HEOG")
     logger.info(f"EOG components: {eog_indices}")
 
     # merge indices
     exclude_idx = list(set(exclude_idx + eog_indices))
     logger.info(f"Excluding components: {exclude_idx}")
     
-    ica.apply(eeg_data, exclude=exclude_idx)
+    # remove EOG channels
+    eeg_data = ica.apply(eeg_data, exclude=exclude_idx)
+    eeg_data = eeg_data.drop_channels(["HEOG", "VEOG"])
     
     return eeg_data
 
 
 def rereference(eeg_data):
     logger.info("Rereferencing to average")
-    eeg_data.set_eeg_reference(ref_channels="average")
+    eeg_data = eeg_data.set_eeg_reference(ref_channels="average")
+    return eeg_data
 
 
 def rsEEG_epoch(eeg_data, duration=2.0):
@@ -106,33 +115,27 @@ def clean_rsEEG(
     eeg_data = eeg_data_raw.copy()
     
     # Downsample
-    downsample(eeg_data)
+    eeg_data = downsample(eeg_data)
     if plot_intermediate:
         utils.plot_rsEEG_raw_average(eeg_data)
     
     # Demean
-    demean(eeg_data)
+    eeg_data = demean(eeg_data)
     if plot_intermediate:
         utils.plot_rsEEG_raw_average(eeg_data)
     
     # Bandpass and notch filter
-    bandpass_notch(eeg_data)
+    eeg_data = bandpass_notch(eeg_data)
     if plot_intermediate:
         utils.plot_rsEEG_raw_average(eeg_data)
     
     # ICA filter
-    ICA(eeg_data)
+    eeg_data = ICA(eeg_data)
     if plot_intermediate:
-        utils.plot_rsEEG_raw_average(eeg_data)
-
-    # Remove EOG
-    remove_EOG(eeg_data)
-    if plot_intermediate:
-        # plot_response(eeg_data)
         utils.plot_rsEEG_raw_average(eeg_data)
     
     # Rereference
-    rereference(eeg_data)
+    eeg_data = rereference(eeg_data)
     if plot_intermediate:
         utils.plot_rsEEG_raw_average(eeg_data)
     
