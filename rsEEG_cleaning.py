@@ -43,7 +43,7 @@ def ICA(eeg_data):
     # iclabel
     ic_labels = label_components(eeg_data, ica, method="iclabel")
     labels = ic_labels["labels"]
-    exclude_idx = [w
+    exclude_idx = [
         idx for idx, label in enumerate(labels) if label not in ["brain", "other"]
     ]
     logger.info(f"icalabel components: {exclude_idx}")
