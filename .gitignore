@@ -5,3 +5,4 @@ dataset
 *.csv
 __pycache__
 .ipynb_checkpoints
+catboost_info
