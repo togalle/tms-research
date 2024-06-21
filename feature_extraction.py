@@ -25,8 +25,13 @@ def feature_df(rseeg, sptep, rseeg_funcs, filename=None, n_jobs=2, save=True):
     return rseeg_df
 
 
+def load_fif_file(filename):
+    eeg_data = mne.read_epochs(filename)
+    return eeg_data
+
+
 # Process file pairs
-def process_file(filename_template, source_folder, destination_folder=None):
+def process_file(filename_template, source_folder, selected_funcs, destination_folder=None):
     #filename template without file extension
     logger.info(f'Processing file pair {filename_template}')
     rseeg = load_fif_file(os.path.join(source_folder, filename_template.format(modality="rsEEG")))
@@ -60,6 +65,7 @@ def feat_extr_on_folder(source_folder, destination_folder, parallel=True):
 
 
 def create_labels_csv(directory, metadata_csv, output_csv, modality_mapping={'rsEEG': 0, 'spTEP': 1}, timing_mapping={'pre': 0, 'post': 1}):
+    # session mapping: {0: sham, 1: cTBS, 2: iTBS}
     metadata = pd.read_csv(metadata_csv, index_col=0, header=None)
     data = []
 
