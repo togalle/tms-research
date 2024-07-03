@@ -147,12 +147,13 @@ def ICA_2(epoch_data):
     ic_labels = label_components(epoch_data, ica, method="iclabel")
 
     labels = ic_labels["labels"]
+    proba = ic_labels["y_pred_proba"]
     exclude_idx = [
-        idx for idx, label in enumerate(labels) if label not in ["brain", "other"]
+        idx for idx, label in enumerate(labels) if label not in ["brain", "other"] and proba[idx] > 0.8
     ]
     logger.info(f"ICA-label components: {exclude_idx}")
 
-    eog_indices, eog_scores = ica.find_bads_eog(epoch_data, ch_name=["HEOG", "VEOG"])
+    eog_indices, eog_scores = ica.find_bads_eog(epoch_data, ch_name="HEOG")
     logger.info(f"EOG components: {eog_indices}")
 
     # merge indices
@@ -216,9 +217,6 @@ def clean_spTEP(
     if plot_intermediate:
         logger.info("Plotting original signal")
         utils.plot_average_response(eeg_data_copy, tmin=-0.05, tmax=1)
-
-    # Remove EOG channels
-    remove_EOG(eeg_data_copy)
     
     # Interpolate bad channels
     if bad_channels is not None:
@@ -271,6 +269,8 @@ def clean_spTEP(
     ICA_2(epochs)
     if plot_intermediate:
         utils.plot_epochs_average(epochs, start=-0.05, end=1)
+        
+    remove_EOG(epochs)
     
     # Rereference (average)
     rereference(epochs)
