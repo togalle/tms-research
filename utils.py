@@ -3,6 +3,9 @@ import logging
 import colorlog
 import numpy as np
 import matplotlib.pyplot as plt
+import re
+import os
+from sklearn.model_selection import train_test_split
 
 # =================== Logging ==========================
 
@@ -120,3 +123,24 @@ def plot_epochs_gmfa(epochs, start=-0.05, end=0.25):
     plt.ylabel("GMFA")
     plt.xlim([start, end])
     plt.show()
+
+# ===================================================================================
+
+def get_train_test_split(directory, test_size=0.2, random_state=42):
+    """Create a train-test split of all filenames in a directory based on the participant to avoid data leakage."""
+    filenames = os.listdir(directory)
+    participant_dict = {}
+    for filename in filenames:
+        match = re.search(r'H_(\d{2})', filename)
+        if match:
+            participant_num = match.group(1)
+            if participant_num not in participant_dict:
+                participant_dict[participant_num] = []
+            participant_dict[participant_num].append(filename)
+    participants = list(participant_dict.keys())
+    train_participants, test_participants = train_test_split(participants, test_size=test_size, random_state=random_state)
+
+    train_files = [filename for participant in train_participants for filename in participant_dict[participant]]
+    test_files = [filename for participant in test_participants for filename in participant_dict[participant]]
+
+    return train_files, test_files
