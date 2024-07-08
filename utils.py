@@ -4,6 +4,7 @@ import colorlog
 import numpy as np
 import matplotlib.pyplot as plt
 import re
+import pandas as pd
 import os
 from sklearn.model_selection import train_test_split
 
@@ -144,3 +145,24 @@ def get_train_test_split(directory, test_size=0.2, random_state=42):
     test_files = [filename for participant in test_participants for filename in participant_dict[participant]]
 
     return train_files, test_files
+
+def get_metadata_df(directory, metadata_csv):
+    metadata = pd.read_csv(metadata_csv, index_col=0, header=None)
+
+    labels = {0: 'sham', 1: 'ctbs', 2: 'itbs'}
+    data = []
+
+    for filename in os.listdir(directory):
+        # note that the s can be upper or lower case and that the letter b can be behind the session number
+        match = re.match(r'TMS-EEG-H_(\d+)_(S|s)(\w+)(b?)_(rsEEG|spTEP)_(pre|post)', filename)
+        if match:
+            patient_id, _, session, _, eeg_type, pre_post = match.groups()
+            session = int(session.rstrip('b'))
+
+            # Get the procedure for the session from the metadata
+            procedure = labels[metadata.loc[f'H{patient_id}'][session]]
+
+            data.append([filename, procedure, patient_id, eeg_type, pre_post])
+
+    df = pd.DataFrame(data, columns=['filename', 'procedure', 'patient_id', 'eeg_type', 'pre_post'])
+    return df
