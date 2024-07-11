@@ -90,7 +90,7 @@ def rsEEG_epoch(eeg_data, duration=2.0):
     return epochs
 
 
-def autoreject(epochs, transform_bads=True):
+def autoreject(epochs, transform_bads=False):
     logger.info("Rejecting bad epochs")
     if transform_bads:
         ar = AutoReject(n_jobs=3, picks="eeg")
