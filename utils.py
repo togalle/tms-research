@@ -156,7 +156,7 @@ def get_metadata_df(directory, metadata_csv):
         # note that the s can be upper or lower case and that the letter b can be behind the session number
         match = re.match(r'TMS-EEG-(-?)H_(\d+)_(S|s)(\w+)(b?)_(rsEEG|spTEP)_(pre|post)', filename)
         if match:
-            patient_id, _, session, _, eeg_type, pre_post = match.groups()
+            _, patient_id, _, session, _, eeg_type, pre_post = match.groups()
             session = int(session.rstrip('b'))
 
             # Get the procedure for the session from the metadata
