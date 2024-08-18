@@ -1,7 +1,7 @@
-# tms-research
+# TMS research
 
 Repository for the thesis project of Tomas Galle (2023-2024)
 
-## Useful functions
+## Structure
 
-To clean a folder containing spTEP and rsEEG data, use the `process_folder` function in `cleaning.py`
+The notebooks were used to conduct the analysis. 

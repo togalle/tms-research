@@ -8,12 +8,15 @@ from utils import get_logger
 
 logger = get_logger()
 
-def process_file(file_path, output_path):
-
+def process_file(file_path, output_path, overwrite=True):
+    """
+    Cleans the given file and saves the result in output_path as an epo.fif file.
+    """
+    
     raw = mne.io.read_raw_brainvision(file_path, preload=True)
 
     if "spTEP" in file_path:
-        epochs = clean_spTEP(raw, plot_result=True, save_result=False)
+        epochs = clean_spTEP(raw, save_result=False)
     elif "rsEEG" in file_path:
         epochs = clean_rsEEG(raw, save_result=False)
     else:
@@ -26,11 +29,11 @@ def process_file(file_path, output_path):
     
     logger.info(f"Saving {output_file}")
     
-    epochs.save(output_file, overwrite=True)
+    epochs.save(output_file, overwrite=overwrite)
 
 def process_folder(folder_path, output_path, max_workers=4, parallel=True):
     """
-    Cleans all the files in the folder_path and saves the cleaned files in the output_path.
+    Cleans all the files in the folder_path and saves the cleaned files in output_path.
     """
     
     files = [
